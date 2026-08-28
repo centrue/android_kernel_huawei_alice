@@ -11,7 +11,7 @@ RUN printf '%s\n' \
       'deb http://mirrors.aliyun.com/ubuntu bionic-security main restricted universe multiverse' \
       > /etc/apt/sources.list \
  && apt-get update \
- && apt-get install -y --no-install-recommends bc bison build-essential flex libssl-dev libncurses5-dev ca-certificates cpio gzip xz-utils \
+ && apt-get install -y --no-install-recommends bc bison build-essential flex libssl-dev libncurses5-dev ca-certificates cpio gzip xz-utils python \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src

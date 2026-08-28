@@ -97,12 +97,13 @@ docker run --rm \
         export CROSS_COMPILE="/opt/android-toolchain/bin/$CROSS_COMPILE_PREFIX"
         compiler_version="$("${CROSS_COMPILE}gcc" -dumpversion)"
         case "$compiler_version" in
-            4.9*) printf 'compiler: '; "${CROSS_COMPILE}gcc" --version | head -1 ;;
+            4.9*) printf "compiler: "; "${CROSS_COMPILE}gcc" --version | head -1 ;;
             *) echo "!! expected Android GCC 4.9, got $compiler_version" >&2; exit 1 ;;
         esac
         # This is the same out-of-tree KERNEL_OUT and arm64 module flag used
         # by vendor/lineage/build/tasks/kernel.mk during `make bacon`.
         KERNEL_OUT=/out/kernel-out
+        mkdir -p "$KERNEL_OUT"
         make O="$KERNEL_OUT" CFLAGS_MODULE="-fno-pic" "$KERNEL_CONFIG"
         if [ "$ENABLE_TCPMSS" = 1 ]; then
             sed -i "s/^# CONFIG_NETFILTER_XT_TARGET_TCPMSS is not set/CONFIG_NETFILTER_XT_TARGET_TCPMSS=y/" "$KERNEL_OUT/.config"
