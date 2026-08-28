@@ -17,13 +17,21 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential flex libssl-dev libncurses5-dev gcc-aarch64-linux-gnu xz-utils
+          sudo apt-get install -y bc bison build-essential flex libssl-dev libncurses5-dev xz-utils curl
       - name: Build kernel and repack boot image
         env:
           ARCH: arm64
           CROSS_COMPILE: aarch64-linux-gnu-
         run: |
           set -euo pipefail
+          TOOLCHAIN="$RUNNER_TEMP/gcc-7"
+          TOOLCHAIN_URL='https://releases.linaro.org/components/toolchain/binaries/7.3-2018.05/aarch64-linux-gnu/gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu.tar.xz'
+          mkdir -p "$TOOLCHAIN"
+          curl --fail --location --retry 3 "$TOOLCHAIN_URL" -o "$RUNNER_TEMP/gcc-7.tar.xz"
+          tar -xJf "$RUNNER_TEMP/gcc-7.tar.xz" --strip-components=1 -C "$TOOLCHAIN"
+          export PATH="$TOOLCHAIN/bin:$PATH"
+          export CROSS_COMPILE="$TOOLCHAIN/bin/aarch64-linux-gnu-"
+          "$CROSS_COMPILE"gcc --version | head -1
           make alice_defconfig
           if [ '${{ inputs.enable_tcpmss }}' = true ]; then
             sed -i 's/^# CONFIG_NETFILTER_XT_TARGET_TCPMSS is not set/CONFIG_NETFILTER_XT_TARGET_TCPMSS=y/' .config
@@ -32,7 +40,7 @@ jobs:
           # GCC 14 on the self-hosted Debian runner promotes this legacy
           # kernel's intentional `return 0` in a void exception handler to an
           # error. Keep the source unchanged and disable only that new warning.
-          make KCFLAGS='-Wno-return-mismatch -Wno-error=implicit-function-declaration' -j"$(nproc)" Image
+          make CROSS_COMPILE="$CROSS_COMPILE" KCFLAGS='-Wno-return-mismatch -Wno-error=implicit-function-declaration' -j"$(nproc)" Image
           mkdir -p "$RUNNER_TEMP/magisk"
           curl -fsSL -o "$RUNNER_TEMP/magisk/magiskboot.xz" https://github.com/topjohnwu/Magisk/releases/latest/download/magiskboot.xz
           xz -df "$RUNNER_TEMP/magisk/magiskboot.xz"
