@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on: [self-hosted, d1581-debian]
+    runs-on: d1581-debian
     steps:
       - uses: actions/checkout@v4
       - name: Install build dependencies
