@@ -25,7 +25,9 @@ jobs:
         run: |
           set -euo pipefail
           TOOLCHAIN="$RUNNER_TEMP/gcc-7"
-          TOOLCHAIN_URL='https://releases.linaro.org/components/toolchain/binaries/7.3-2018.05/aarch64-linux-gnu/gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu.tar.xz'
+          # The original Linaro archive URL now redirects to a contact page.
+          # This mirror exposes the same GCC 7.3.1 archive as a real tarball.
+          TOOLCHAIN_URL='https://sources.libreelec.tv/mirror/gcc-linaro-aarch64-linux-gnu/gcc-linaro-aarch64-linux-gnu-7.3.1-2018.05.tar.xz'
           mkdir -p "$TOOLCHAIN"
           curl --fail --location --retry 3 "$TOOLCHAIN_URL" -o "$RUNNER_TEMP/gcc-7.tar.xz"
           tar -xJf "$RUNNER_TEMP/gcc-7.tar.xz" --strip-components=1 -C "$TOOLCHAIN"
