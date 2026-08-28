@@ -1597,6 +1597,25 @@ STATIC int32 hwifi_cfg80211_get_station(struct wiphy         *wiphy,
         return -EFAIL;
     }
 
+    /*
+     * The HI1101 path stores the association-request IEs in its private
+     * station table, but the original cfg80211 callback never exported
+     * them.  nl80211 therefore gave hostapd an empty NL80211_ATTR_IE and
+     * hostapd rejected WPA/WPA2 stations with "No WPA/RSN IE from STA".
+     */
+    if (IS_AP(cfg))
+    {
+        struct conn_sta_info *sta;
+
+        sta = find_by_mac(&cfg->ap_info.sta_mgmt, mac);
+        if ((NULL != sta) && (0 != sta->assoc_req.ie_len))
+        {
+            sinfo->filled |= STATION_INFO_ASSOC_REQ_IES;
+            sinfo->assoc_req_ies = sta->assoc_req.ie;
+            sinfo->assoc_req_ies_len = sta->assoc_req.ie_len;
+        }
+    }
+
     if (IS_STA(cfg))
     {
         /* STA mode,直接读取上次随心跳上报的sta信息 */
