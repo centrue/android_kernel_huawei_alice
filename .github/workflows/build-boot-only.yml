@@ -32,7 +32,7 @@ jobs:
           # GCC 14 on the self-hosted Debian runner promotes this legacy
           # kernel's intentional `return 0` in a void exception handler to an
           # error. Keep the source unchanged and disable only that new warning.
-          make KCFLAGS=-Wno-return-mismatch -j"$(nproc)" Image
+          make KCFLAGS='-Wno-return-mismatch -Wno-error=implicit-function-declaration' -j"$(nproc)" Image
           mkdir -p "$RUNNER_TEMP/magisk"
           curl -fsSL -o "$RUNNER_TEMP/magisk/magiskboot.xz" https://github.com/topjohnwu/Magisk/releases/latest/download/magiskboot.xz
           xz -df "$RUNNER_TEMP/magisk/magiskboot.xz"
