@@ -2531,6 +2531,19 @@ int32 hwifi_cfg80211_change_mode(struct wiphy       *wiphy,
         return SUCC;
     }
 
+    /* Ensure HI1101 firmware is ready before hostapd requests AP mode. */
+    if ((NL80211_IFTYPE_AP == type || NL80211_IFTYPE_P2P_GO == type) &&
+        (TRUE != cfg->init_flag))
+    {
+        HWIFI_INFO("AP mode requested before HI1101 init; opening device");
+        ret = hwifi_wlan_open(ndev);
+        if (SUCC != ret)
+        {
+            HWIFI_ERROR("HI1101 readiness handshake failed: %d", ret);
+            return -EIO;
+        }
+    }
+
     memset(&mode_param, 0, sizeof(mode_param));
     mode_param.next_mode = cfg->hi110x_dev->mode.next_mode;
 
