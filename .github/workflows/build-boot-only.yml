@@ -34,6 +34,14 @@ jobs:
           export PATH="$TOOLCHAIN/bin:$PATH"
           export CROSS_COMPILE="$TOOLCHAIN/bin/aarch64-linux-gnu-"
           "$CROSS_COMPILE"gcc --version | head -1
+          # The 3.10 kbuild uses composite-object rules that are incompatible
+          # with GNU Make 4.3 on the runner (empty ld -r dependency lists).
+          curl --fail --location --retry 3 \
+            https://ftp.gnu.org/gnu/make/make-4.2.1.tar.gz -o "$RUNNER_TEMP/make.tar.gz"
+          tar -xzf "$RUNNER_TEMP/make.tar.gz" -C "$RUNNER_TEMP"
+          (cd "$RUNNER_TEMP/make-4.2.1" && ./configure --prefix="$RUNNER_TEMP/make-4.2.1/out" >/dev/null && make -j"$(nproc)" >/dev/null && make install >/dev/null)
+          export PATH="$RUNNER_TEMP/make-4.2.1/out/bin:$PATH"
+          make --version | head -1
           make alice_defconfig
           if [ '${{ inputs.enable_tcpmss }}' = true ]; then
             sed -i 's/^# CONFIG_NETFILTER_XT_TARGET_TCPMSS is not set/CONFIG_NETFILTER_XT_TARGET_TCPMSS=y/' .config
