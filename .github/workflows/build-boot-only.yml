@@ -1,0 +1,47 @@
+name: Build boot.img (TCPMSS comparison)
+
+on:
+  workflow_dispatch:
+    inputs:
+      enable_tcpmss:
+        description: Enable CONFIG_NETFILTER_XT_TARGET_TCPMSS
+        type: boolean
+        required: true
+        default: false
+
+jobs:
+  build:
+    runs-on: [self-hosted, d1581-debian]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential flex libssl-dev libncurses5-dev gcc-aarch64-linux-gnu xz-utils
+      - name: Build kernel and repack boot image
+        env:
+          ARCH: arm64
+          CROSS_COMPILE: aarch64-linux-gnu-
+        run: |
+          set -euo pipefail
+          make alice_defconfig
+          if [ '${{ inputs.enable_tcpmss }}' = true ]; then
+            sed -i 's/^# CONFIG_NETFILTER_XT_TARGET_TCPMSS is not set/CONFIG_NETFILTER_XT_TARGET_TCPMSS=y/' .config
+          fi
+          make olddefconfig
+          make -j"$(nproc)" Image
+          mkdir -p "$RUNNER_TEMP/magisk"
+          curl -fsSL -o "$RUNNER_TEMP/magisk/magiskboot.xz" https://github.com/topjohnwu/Magisk/releases/latest/download/magiskboot.xz
+          xz -df "$RUNNER_TEMP/magisk/magiskboot.xz"
+          chmod +x "$RUNNER_TEMP/magisk/magiskboot"
+          cp prebuilt/base-boot.img "$RUNNER_TEMP/base-boot.img"
+          cd "$RUNNER_TEMP/magisk"
+          ./magiskboot unpack ../base-boot.img
+          cp "$GITHUB_WORKSPACE/arch/arm64/boot/Image" kernel
+          ./magiskboot repack ../base-boot.img ../boot.img
+          sha256sum ../boot.img | tee "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boot-img-tcpmss-${{ inputs.enable_tcpmss }}
+          path: ${{ runner.temp }}/boot.img
+          if-no-files-found: error
