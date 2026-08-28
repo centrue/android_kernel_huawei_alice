@@ -1,26 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build only the ARM64 kernel in an Ubuntu 18.04 container and replace the
-# kernel payload in prebuilt/base-boot.img. The Android system/vendor tree is
-# not required and is never built.
+# Build only the ARM64 kernel in an Ubuntu 18.04 container and export the
+# resulting Image. Boot-image unpacking/repacking is intentionally left to the
+# caller, so this script has no boot-image tool dependency.
 #
 # The kernel parameters are read from the synced device tree's BoardConfig.mk;
-# this script does not invent a config, image target, load geometry, or cross
-# compiler prefix. Because the kernel-only checkout has no Android prebuilts,
+# this script does not invent a config, image target, or cross compiler prefix.
+# Because the kernel-only checkout has no Android prebuilts,
 # pass the exact AOSP/Lineage GCC 4.9 directory with --toolchain-dir.
 #
 # Example:
 #   ./scripts/build-boot-local.sh \
-#     --toolchain-dir /path/to/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
-#     --magiskboot /path/to/magiskboot
+#     --toolchain-dir /path/to/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
 
 ROOTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="${IMAGE:-centrue-alice-kernel-builder:18.04}"
-OUTDIR="${OUTDIR:-${ROOTDIR}/out-boot}"
+OUTDIR="${OUTDIR:-${ROOTDIR}/out-kernel}"
 ENABLE_TCPMSS=0
 JOBS="${JOBS:-$(nproc)}"
-MAGISKBOOT="${MAGISKBOOT:-}"
 BOARD_CONFIG="${BOARD_CONFIG:-${ROOTDIR}/../android_device_huawei_alice_clone/BoardConfig.mk}"
 TOOLCHAIN_DIR="${TOOLCHAIN_DIR:-}"
 
@@ -28,7 +26,6 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --enable-tcpmss) ENABLE_TCPMSS=1; shift ;;
         --jobs) JOBS="$2"; shift 2 ;;
-        --magiskboot) MAGISKBOOT="$2"; shift 2 ;;
         --outdir) OUTDIR="$2"; shift 2 ;;
         --board-config) BOARD_CONFIG="$2"; shift 2 ;;
         --toolchain-dir) TOOLCHAIN_DIR="$2"; shift 2 ;;
@@ -40,12 +37,6 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-[ -f "${ROOTDIR}/prebuilt/base-boot.img" ] || {
-    echo "!! missing prebuilt/base-boot.img" >&2; exit 1; }
-if [ -z "${MAGISKBOOT}" ] || [ ! -x "${MAGISKBOOT}" ]; then
-    echo "!! pass --magiskboot /path/to/magiskboot (an executable)" >&2
-    exit 1
-fi
 [ -f "${BOARD_CONFIG}" ] || {
     echo "!! missing BoardConfig.mk: ${BOARD_CONFIG}" >&2
     echo "   pass --board-config /path/to/DarkJoker360/android_device_huawei_alice/BoardConfig.mk" >&2
@@ -71,10 +62,6 @@ KERNEL_ARCH="$(mkvar TARGET_KERNEL_ARCH)"
 KERNEL_CONFIG="$(mkvar TARGET_KERNEL_CONFIG)"
 KERNEL_IMAGE="$(mkvar BOARD_KERNEL_IMAGE_NAME)"
 CROSS_COMPILE_PREFIX="$(mkvar TARGET_KERNEL_CROSS_COMPILE_PREFIX)"
-KERNEL_BASE="$(mkvar BOARD_KERNEL_BASE)"
-KERNEL_PAGESIZE="$(mkvar BOARD_KERNEL_PAGESIZE)"
-KERNEL_CMDLINE="$(mkvar BOARD_KERNEL_CMDLINE)"
-MKBOOTIMG_ARGS="$(mkvar BOARD_MKBOOTIMG_ARGS)"
 
 [ "${KERNEL_ARCH}" = arm64 ] || {
     echo "!! BoardConfig TARGET_KERNEL_ARCH=${KERNEL_ARCH@Q}; expected arm64" >&2; exit 1; }
@@ -86,12 +73,6 @@ MKBOOTIMG_ARGS="$(mkvar BOARD_MKBOOTIMG_ARGS)"
     echo "!! BoardConfig TARGET_KERNEL_CROSS_COMPILE_PREFIX=${CROSS_COMPILE_PREFIX@Q}; expected aarch64-linux-android-" >&2
     exit 1
 }
-[ "${KERNEL_BASE}" = 0x07478000 ] || {
-    echo "!! unexpected BOARD_KERNEL_BASE=${KERNEL_BASE@Q}" >&2; exit 1; }
-[ "${KERNEL_PAGESIZE}" = 2048 ] || {
-    echo "!! unexpected BOARD_KERNEL_PAGESIZE=${KERNEL_PAGESIZE@Q}" >&2; exit 1; }
-[ -n "${KERNEL_CMDLINE}" ] || { echo "!! BoardConfig BOARD_KERNEL_CMDLINE is empty" >&2; exit 1; }
-[ -n "${MKBOOTIMG_ARGS}" ] || { echo "!! BoardConfig BOARD_MKBOOTIMG_ARGS is empty" >&2; exit 1; }
 
 if [ ! -x "${TOOLCHAIN_DIR}/bin/${CROSS_COMPILE_PREFIX}gcc" ]; then
     echo "!! missing ${TOOLCHAIN_DIR}/bin/${CROSS_COMPILE_PREFIX}gcc" >&2
@@ -109,7 +90,6 @@ docker run --rm \
     -e CROSS_COMPILE_PREFIX="${CROSS_COMPILE_PREFIX}" \
     -v "${ROOTDIR}:/src" \
     -v "${TOOLCHAIN_DIR}:/opt/android-toolchain:ro" \
-    -v "${MAGISKBOOT}:/usr/local/bin/magiskboot:ro" \
     -v "${OUTDIR}:/out" \
     "${IMAGE}" bash -ceu '
         cd /src
@@ -133,12 +113,7 @@ docker run --rm \
             make O="$KERNEL_OUT" CFLAGS_MODULE="-fno-pic" -j"$JOBS" dtbs
         fi
         cp "$KERNEL_OUT/arch/$KERNEL_ARCH/boot/$KERNEL_IMAGE" /out/Image
-        cp prebuilt/base-boot.img /out/base-boot.img
-        cd /out
-        magiskboot unpack base-boot.img
-        cp Image kernel
-        magiskboot repack base-boot.img boot.img
-        sha256sum boot.img | tee boot.img.sha256
+        sha256sum /out/Image | tee /out/Image.sha256
     '
 
-echo "boot image: ${OUTDIR}/boot.img"
+echo "kernel image: ${OUTDIR}/Image"
