@@ -405,6 +405,22 @@ STATIC void  hwifi_sta_join(struct cfg_struct *cfg, struct hwifi_sta_join_stru *
     memset(&sinfo, 0, sizeof(sinfo));
     /* TODO: sinfo.generation */
 
+    /*
+     * hostapd receives the association request IEs from the station_info
+     * attached to NL80211_CMD_NEW_STATION.  HI1101 already saved these IEs
+     * in the private station table in hwifi_report_mgmt_frame(), but the
+     * original code reported an empty station_info.  Without the RSN IE,
+     * hostapd cannot start the WPA handshake and drops the station after its
+     * authentication timeout.
+     */
+    if (0 != sta->assoc_req.ie_len)
+    {
+        sinfo.filled |= STATION_INFO_ASSOC_REQ_IES;
+        sinfo.assoc_req_ies = sta->assoc_req.ie;
+        sinfo.assoc_req_ies_len = sta->assoc_req.ie_len;
+        HWIFI_INFO("STA_JOIN: export assoc_req IEs, len=%d", sta->assoc_req.ie_len);
+    }
+
     HWIFI_INFO("STA_JOIN : report added station to kernel,aid=%d,mac="MACFMT, event->aid, MAC2STR(event->mac));
     cfg80211_new_sta(cfg->ndev, sta->mac, &sinfo, GFP_KERNEL);
 
