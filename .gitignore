@@ -1,2 +1,4 @@
 out-kernel/
 out-kernel-tcpmss/
+
+*.tar.zst
